@@ -8,12 +8,20 @@ import {
   Filter, 
   RefreshCw,
   AlertCircle,
-  FileSearch
+  FileSearch,
+  Copy,
+  CheckCircle2,
+  Sparkles,
+  BrainCircuit
 } from 'lucide-react';
 import { cn } from './lib/utils';
+import { GoogleGenAI } from '@google/genai';
 
 // Declare chrome for TypeScript
 declare const chrome: any;
+
+// Initialize Gemini
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 // --- Types ---
 interface DownloadItem {
@@ -47,13 +55,64 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isMock, setIsMock] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiResults, setAiResults] = useState<Record<string, { isBCTC: boolean, stockCode: string | null }>>({});
+  const [copied, setCopied] = useState(false);
+
+  // --- Logic: AI Analysis ---
+  const analyzeWithAI = async () => {
+    if (allFilesToday.length === 0) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const fileList = allFilesToday.map(f => `ID: ${f.id}, Name: ${f.name}`).join('\n');
+      const prompt = `Bạn là chuyên gia phân tích dữ liệu tài chính. Hãy phân tích danh sách tên file sau đây và xác định xem file nào là Báo cáo tài chính (BCTC, báo cáo thường niên, nghị quyết ĐHĐCĐ, tài liệu họp...). 
+      Đối với mỗi file được xác định là BCTC, hãy trích xuất mã chứng khoán (thường là 3 chữ cái in hoa).
+      
+      Danh sách file:
+      ${fileList}
+      
+      Trả về kết quả dưới dạng JSON array: [{"id": "ID_FILE", "isBCTC": true, "stockCode": "MÃ"}]
+      Chỉ trả về JSON, không thêm văn bản khác.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt
+      });
+      
+      const text = response.text || '';
+      
+      // Clean JSON response if needed
+      const jsonStr = text.replace(/```json|```/g, '').trim();
+      const parsedResults = JSON.parse(jsonStr);
+      
+      const newAiResults: Record<string, { isBCTC: boolean, stockCode: string | null }> = {};
+      parsedResults.forEach((res: any) => {
+        newAiResults[res.id] = { isBCTC: res.isBCTC, stockCode: res.stockCode };
+      });
+      
+      setAiResults(newAiResults);
+    } catch (error) {
+      console.error('AI Analysis Error:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // --- Logic: Extract Stock Code ---
   const extractStockCode = (filename: string): string | null => {
-    const ignoreList = ['BCTC', 'PDF', 'ZIP', 'XLS', 'DOC', 'TXT', 'IMG', 'PNG', 'JPG', 'Q1', 'Q2', 'Q3', 'Q4'];
-    const matches = filename.match(/\b[A-Z]{3}\b/g);
-    if (!matches) return null;
-    return matches.find(m => !ignoreList.includes(m)) || null;
+    // Keywords to ignore when looking for stock codes
+    const ignoreList = ['BCTC', 'PDF', 'ZIP', 'XLS', 'DOC', 'TXT', 'IMG', 'PNG', 'JPG', 'Q1', 'Q2', 'Q3', 'Q4', 'BCQT'];
+    
+    // Normalize: replace underscores and non-alphanumeric with spaces to help regex
+    const normalized = filename.toUpperCase().replace(/[^A-Z0-9]/g, ' ');
+    const words = normalized.split(/\s+/);
+    
+    // Find words that are exactly 3 letters long
+    const candidates = words.filter(w => w.length === 3 && /^[A-Z]+$/.test(w));
+    
+    // Return the first candidate that isn't in the ignore list
+    return candidates.find(m => !ignoreList.includes(m)) || null;
   };
 
   // --- Logic: Fetch Downloads ---
@@ -115,26 +174,50 @@ export default function App() {
   const filteredFiles = useMemo(() => {
     if (showAll) return allFilesToday;
 
+    // If AI has results, use them
+    if (Object.keys(aiResults).length > 0) {
+      return allFilesToday.filter(file => aiResults[file.id]?.isBCTC);
+    }
+
     return allFilesToday.filter(file => {
+      // Normalize name for keyword matching: remove underscores, dots, etc.
+      const nameLower = file.name.toLowerCase();
+      const normalizedName = nameLower.replace(/[_.]/g, ' ');
+      
       const keywords = [
         'bctc', 'bao cao', 'báo cáo', 'tai chinh', 'tài chính', 
         'financial', 'report', 'annual', 'kiem toan', 'kiểm toán',
-        'nghi quyet', 'nghị quyết', 'dhdcd', 'đhđcđ'
+        'nghi quyet', 'nghị quyết', 'dhdcd', 'đhđcđ',
+        'baocaotaichinh', 'taichinh', 'kiemtoan', 'nghiquyet'
       ];
-      const nameLower = file.name.toLowerCase();
-      const matchesKeyword = keywords.some(k => nameLower.includes(k));
+      
+      const matchesKeyword = keywords.some(k => 
+        normalizedName.includes(k) || nameLower.includes(k.replace(/\s/g, ''))
+      );
       
       const hasStockCode = file.stockCode !== null;
-      const hasYear = /\b(20\d{2})\b/.test(file.name);
+      // If it has a stock code and it's a PDF/Excel, it's likely a report
+      const isReportType = /\.(pdf|xlsx|xls|doc|docx)$/i.test(file.name);
       
-      return matchesKeyword || (hasStockCode && hasYear);
+      return matchesKeyword || (hasStockCode && isReportType);
     });
   }, [allFilesToday, showAll]);
 
   const uniqueStockCodes = useMemo(() => {
-    const codes = filteredFiles.map(f => f.stockCode).filter(Boolean) as string[];
-    return Array.from(new Set(codes));
-  }, [filteredFiles]);
+    const codes = filteredFiles.map(file => {
+      // Prefer AI stock code if available
+      if (aiResults[file.id]?.stockCode) return aiResults[file.id].stockCode;
+      return file.stockCode;
+    }).filter(Boolean) as string[];
+    return Array.from(new Set(codes)).sort();
+  }, [filteredFiles, aiResults]);
+
+  const handleCopy = () => {
+    const text = uniqueStockCodes.join(', ');
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="w-[400px] min-h-[500px] bg-[#F8FAFC] text-slate-900 font-sans flex flex-col shadow-xl">
@@ -193,8 +276,29 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 p-4 overflow-y-auto">
+        {/* AI Action */}
+        <div className="mb-4">
+          <button
+            onClick={analyzeWithAI}
+            disabled={isAnalyzing || allFilesToday.length === 0}
+            className={cn(
+              "w-full py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all shadow-sm",
+              isAnalyzing 
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                : "bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 active:scale-[0.98]"
+            )}
+          >
+            {isAnalyzing ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <BrainCircuit className="w-4 h-4" />
+            )}
+            {isAnalyzing ? "Đang phân tích AI..." : "Dùng AI Nhận Diện BCTC"}
+          </button>
+        </div>
+
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Tổng số file</p>
             <p className="text-2xl font-bold text-blue-600">{filteredFiles.length}</p>
@@ -204,6 +308,29 @@ export default function App() {
             <p className="text-2xl font-bold text-emerald-600">{uniqueStockCodes.length}</p>
           </div>
         </div>
+
+        {/* Stock Codes List */}
+        {uniqueStockCodes.length > 0 && (
+          <div className="mb-6 bg-emerald-50/50 border border-emerald-100 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Danh sách mã CK</h3>
+              <button 
+                onClick={handleCopy}
+                className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
+              >
+                {copied ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                {copied ? "ĐÃ SAO CHÉP" : "SAO CHÉP"}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {uniqueStockCodes.map(code => (
+                <span key={code} className="bg-white border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold shadow-sm">
+                  {code}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* File List */}
         <div className="space-y-3">
@@ -238,9 +365,10 @@ export default function App() {
                         {file.name}
                       </p>
                       <div className="flex items-center gap-3">
-                        {file.stockCode ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wide">
-                            {file.stockCode}
+                        {aiResults[file.id]?.stockCode || file.stockCode ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wide">
+                            {aiResults[file.id]?.isBCTC && <Sparkles className="w-2.5 h-2.5" />}
+                            {aiResults[file.id]?.stockCode || file.stockCode}
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
