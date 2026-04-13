@@ -117,6 +117,7 @@ export default function App() {
       2. Trích xuất mã chứng khoán (3 chữ cái in hoa). 
       3. KIỂM TRA TÍNH HỢP LỆ: Chỉ lấy các mã chứng khoán THẬT đang niêm yết trên sàn HOSE, HNX, UPCOM (ví dụ: VNM, HPG, ACB, VCB...). 
       4. LOẠI BỎ CÁC MÃ GIẢ: Tuyệt đối không lấy các từ 3 chữ cái nhưng không phải mã chứng khoán như: TAI (tải), BAO (báo), PDF, ZIP, XLS, DOC, IMG, APP, FIX, NEW, OLD, M88, FUN, WIN, v.v.
+      5. Nếu không chắc chắn là BCTC hoặc không tìm thấy mã chứng khoán hợp lệ, hãy trả về isBCTC: false và stockCode: null.
       
       Danh sách file:
       ${fileList}
@@ -158,7 +159,11 @@ export default function App() {
   // --- Logic: Extract Stock Code ---
   const extractStockCode = (filename: string): string | null => {
     // Keywords to ignore when looking for stock codes
-    const ignoreList = ['BCTC', 'PDF', 'ZIP', 'XLS', 'DOC', 'TXT', 'IMG', 'PNG', 'JPG', 'Q1', 'Q2', 'Q3', 'Q4', 'BCQT'];
+    const ignoreList = [
+      'BCTC', 'PDF', 'ZIP', 'XLS', 'DOC', 'TXT', 'IMG', 'PNG', 'JPG', 'Q1', 'Q2', 'Q3', 'Q4', 'BCQT',
+      'BAO', 'TAI', 'CAO', 'CHINH', 'REPORT', 'ANNUAL', 'KIEM', 'TOAN', 'NGHI', 'QUYET', 'HOP', 'NHAT',
+      'SOAT', 'XET', 'M88', 'FUN', 'WIN', 'APP', 'FIX', 'NEW', 'OLD', 'VIET', 'NAM', 'THUE'
+    ];
     
     // Normalize: replace underscores and non-alphanumeric with spaces to help regex
     const normalized = filename.toUpperCase().replace(/[^A-Z0-9]/g, ' ');
@@ -474,10 +479,20 @@ export default function App() {
                         {file.name}
                       </p>
                       <div className="flex items-center gap-3">
-                        {aiResults[file.id]?.stockCode || file.stockCode ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wide">
-                            {aiResults[file.id]?.isBCTC && <Sparkles className="w-2.5 h-2.5" />}
-                            {aiResults[file.id]?.stockCode || file.stockCode}
+                        {aiResults[file.id] ? (
+                          aiResults[file.id].stockCode ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wide">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              {aiResults[file.id].stockCode}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
+                              Không rõ mã
+                            </span>
+                          )
+                        ) : file.stockCode ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wide">
+                            {file.stockCode}
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
