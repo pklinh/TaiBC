@@ -67,9 +67,14 @@ export default function App() {
       if (typeof chrome !== 'undefined' && chrome.downloads) {
         // Real Chrome Extension environment
         chrome.downloads.search({
-          limit: 100,
+          limit: 1000, // Increased limit to find older files
           orderBy: ['-startTime']
         }, (items) => {
+          if (chrome.runtime.lastError) {
+            console.error('Chrome Search Error:', chrome.runtime.lastError);
+            setIsLoading(false);
+            return;
+          }
           const mapped = items.map(item => ({
             id: item.id.toString(),
             filename: item.filename.split(/[\\/]/).pop() || item.filename,
@@ -116,12 +121,20 @@ export default function App() {
         // Filter by date
         const isSameDayVal = isSameDay(file.date, targetDate);
         
-        // Filter by keywords (BCTC, Báo cáo tài chính, Financial Report)
-        const keywords = ['bctc', 'bao cao tai chinh', 'báo cáo tài chính', 'financial report', 'annual report'];
+        // Broader keywords for BCTC
+        const keywords = [
+          'bctc', 'bao cao', 'báo cáo', 'tai chinh', 'tài chính', 
+          'financial', 'report', 'annual', 'kiem toan', 'kiểm toán',
+          'nghi quyet', 'nghị quyết', 'dhdcd', 'đhđcđ'
+        ];
         const nameLower = file.name.toLowerCase();
         const matchesKeyword = keywords.some(k => nameLower.includes(k));
         
-        return isSameDayVal && matchesKeyword;
+        // Also include if it looks like a stock code + date pattern (e.g. VNM 2023)
+        const hasStockCode = file.stockCode !== null;
+        const hasYear = /\b(20\d{2})\b/.test(file.name);
+        
+        return isSameDayVal && (matchesKeyword || (hasStockCode && hasYear));
       });
   }, [downloads, selectedDate]);
 
