@@ -4,6 +4,9 @@
   "version": "1.0",
   "description": "Lọc và đếm file báo cáo tài chính từ lịch sử tải xuống.",
   "permissions": ["downloads", "history"],
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*"
+  ],
   "action": {
     "default_popup": "index.html",
     "default_title": "Báo Cáo Tài Chính"

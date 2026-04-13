@@ -58,13 +58,19 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResults, setAiResults] = useState<Record<string, { isBCTC: boolean, stockCode: string | null }>>({});
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // --- Logic: AI Analysis ---
   const analyzeWithAI = async () => {
     if (allFilesToday.length === 0) return;
     
     setIsAnalyzing(true);
+    setError(null);
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("Thiếu API Key. Hãy kiểm tra cài đặt Extension.");
+      }
+
       const fileList = allFilesToday.map(f => `ID: ${f.id}, Name: ${f.name}`).join('\n');
       const prompt = `Bạn là chuyên gia phân tích dữ liệu tài chính. Hãy phân tích danh sách tên file sau đây và xác định xem file nào là Báo cáo tài chính (BCTC, báo cáo thường niên, nghị quyết ĐHĐCĐ, tài liệu họp...). 
       Đối với mỗi file được xác định là BCTC, hãy trích xuất mã chứng khoán (thường là 3 chữ cái in hoa).
@@ -84,7 +90,13 @@ export default function App() {
       
       // Clean JSON response if needed
       const jsonStr = text.replace(/```json|```/g, '').trim();
-      const parsedResults = JSON.parse(jsonStr);
+      let parsedResults;
+      try {
+        parsedResults = JSON.parse(jsonStr);
+      } catch (e) {
+        console.error("JSON Parse Error:", text);
+        throw new Error("AI trả về dữ liệu không đúng định dạng.");
+      }
       
       const newAiResults: Record<string, { isBCTC: boolean, stockCode: string | null }> = {};
       parsedResults.forEach((res: any) => {
@@ -92,8 +104,9 @@ export default function App() {
       });
       
       setAiResults(newAiResults);
-    } catch (error) {
-      console.error('AI Analysis Error:', error);
+    } catch (err: any) {
+      console.error('AI Analysis Error:', err);
+      setError(err.message || "Có lỗi xảy ra khi gọi AI.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -185,10 +198,10 @@ export default function App() {
       const normalizedName = nameLower.replace(/[_.]/g, ' ');
       
       const keywords = [
-        'bctc', 'bao cao', 'báo cáo', 'tai chinh', 'tài chính', 
-        'financial', 'report', 'annual', 'kiem toan', 'kiểm toán',
-        'nghi quyet', 'nghị quyết', 'dhdcd', 'đhđcđ',
-        'baocaotaichinh', 'taichinh', 'kiemtoan', 'nghiquyet'
+        'bctc', 'báo cáo tài chính', 'tài chính', 'bctc_hn',
+        'financial', 'kiem toan', 'kiểm toán', 'hopnhat',
+        'baocaotaichinh', 'taichinh', 'kiemtoan', 'chuakiemtoan',
+        'Baocaotaichinh', 'bao_cao_tai_chinh', 'Soatxet'
       ];
       
       const matchesKeyword = keywords.some(k => 
@@ -277,7 +290,7 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 p-4 overflow-y-auto">
         {/* AI Action */}
-        <div className="mb-4">
+        <div className="mb-4 space-y-2">
           <button
             onClick={analyzeWithAI}
             disabled={isAnalyzing || allFilesToday.length === 0}
@@ -295,6 +308,13 @@ export default function App() {
             )}
             {isAnalyzing ? "Đang phân tích AI..." : "Dùng AI Nhận Diện BCTC"}
           </button>
+          
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 p-2 rounded-lg">
+              <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+              <p className="text-[11px] text-red-700 font-medium">{error}</p>
+            </div>
+          )}
         </div>
 
         {/* Stats Grid */}
