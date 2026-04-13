@@ -110,8 +110,13 @@ export default function App() {
       const ai = new GoogleGenAI({ apiKey: currentKey });
 
       const fileList = allFilesToday.map(f => `ID: ${f.id}, Name: ${f.name}`).join('\n');
-      const prompt = `Bạn là chuyên gia phân tích dữ liệu tài chính. Hãy phân tích danh sách tên file sau đây và xác định xem file nào là Báo cáo tài chính (BCTC, báo cáo thường niên, nghị quyết ĐHĐCĐ, tài liệu họp...). 
-      Đối với mỗi file được xác định là BCTC, hãy trích xuất mã chứng khoán (thường là 3 chữ cái in hoa).
+      const prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Hãy phân tích danh sách tên file sau đây và xác định xem file nào là Báo cáo tài chính (BCTC, báo cáo thường niên, nghị quyết ĐHĐCĐ, tài liệu họp...). 
+      
+      QUY TẮC QUAN TRỌNG:
+      1. Chỉ xác định là BCTC nếu tên file có các từ khóa liên quan đến báo cáo tài chính, kiểm toán, đại hội cổ đông.
+      2. Trích xuất mã chứng khoán (3 chữ cái in hoa). 
+      3. KIỂM TRA TÍNH HỢP LỆ: Chỉ lấy các mã chứng khoán THẬT đang niêm yết trên sàn HOSE, HNX, UPCOM (ví dụ: VNM, HPG, ACB, VCB...). 
+      4. LOẠI BỎ CÁC MÃ GIẢ: Tuyệt đối không lấy các từ 3 chữ cái nhưng không phải mã chứng khoán như: TAI (tải), BAO (báo), PDF, ZIP, XLS, DOC, IMG, APP, FIX, NEW, OLD, M88, FUN, WIN, v.v.
       
       Danh sách file:
       ${fileList}
