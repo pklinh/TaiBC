@@ -3,7 +3,7 @@
   "name": "Trình Quản Lý Báo Cáo Tài Chính",
   "version": "1.0",
   "description": "Lọc và đếm file báo cáo tài chính từ lịch sử tải xuống.",
-  "permissions": ["downloads", "history"],
+  "permissions": ["downloads", "history", "storage"],
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*"
   ],

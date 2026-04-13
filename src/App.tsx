@@ -11,6 +11,9 @@ import {
   FileSearch,
   Copy,
   CheckCircle2,
+  Settings,
+  X,
+  Key,
   Sparkles,
   BrainCircuit
 } from 'lucide-react';
@@ -19,9 +22,6 @@ import { GoogleGenAI } from '@google/genai';
 
 // Declare chrome for TypeScript
 declare const chrome: any;
-
-// Initialize Gemini
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 // --- Types ---
 interface DownloadItem {
@@ -59,6 +59,41 @@ export default function App() {
   const [aiResults, setAiResults] = useState<Record<string, { isBCTC: boolean, stockCode: string | null }>>({});
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState<string>('');
+  const [tempApiKey, setTempApiKey] = useState<string>('');
+
+  // --- Logic: Load/Save API Key ---
+  useEffect(() => {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['gemini_api_key'], (result: any) => {
+        if (result.gemini_api_key) {
+          setApiKey(result.gemini_api_key);
+          setTempApiKey(result.gemini_api_key);
+        }
+      });
+    } else {
+      const savedKey = localStorage.getItem('gemini_api_key');
+      if (savedKey) {
+        setApiKey(savedKey);
+        setTempApiKey(savedKey);
+      }
+    }
+  }, []);
+
+  const saveApiKey = () => {
+    const keyToSave = tempApiKey.trim();
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({ gemini_api_key: keyToSave }, () => {
+        setApiKey(keyToSave);
+        setShowSettings(false);
+      });
+    } else {
+      localStorage.setItem('gemini_api_key', keyToSave);
+      setApiKey(keyToSave);
+      setShowSettings(false);
+    }
+  };
 
   // --- Logic: AI Analysis ---
   const analyzeWithAI = async () => {
@@ -67,9 +102,12 @@ export default function App() {
     setIsAnalyzing(true);
     setError(null);
     try {
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error("Thiếu API Key. Hãy kiểm tra cài đặt Extension.");
+      const currentKey = apiKey || process.env.GEMINI_API_KEY;
+      if (!currentKey) {
+        throw new Error("Vui lòng điền Gemini API Key trong phần Cài đặt.");
       }
+
+      const ai = new GoogleGenAI({ apiKey: currentKey });
 
       const fileList = allFilesToday.map(f => `ID: ${f.id}, Name: ${f.name}`).join('\n');
       const prompt = `Bạn là chuyên gia phân tích dữ liệu tài chính. Hãy phân tích danh sách tên file sau đây và xác định xem file nào là Báo cáo tài chính (BCTC, báo cáo thường niên, nghị quyết ĐHĐCĐ, tài liệu họp...). 
@@ -243,7 +281,17 @@ export default function App() {
             </div>
             <h1 className="font-bold text-lg tracking-tight">Quản Lý BCTC</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setShowSettings(!showSettings)}
+              className={cn(
+                "p-2 rounded-full transition-colors",
+                showSettings ? "bg-blue-50 text-blue-600" : "hover:bg-slate-100 text-slate-500"
+              )}
+              title="Cài đặt"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
             <button 
               onClick={() => setShowAll(!showAll)}
               className={cn(
@@ -285,6 +333,42 @@ export default function App() {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
         </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <Key className="w-3 h-3" />
+                Cấu hình API Key
+              </h3>
+              <button onClick={() => setShowSettings(false)}>
+                <X className="w-4 h-4 text-slate-400 hover:text-slate-600" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Gemini API Key</label>
+                <input 
+                  type="password"
+                  value={tempApiKey}
+                  onChange={(e) => setTempApiKey(e.target.value)}
+                  placeholder="Dán API Key của bạn tại đây..."
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <button 
+                onClick={saveApiKey}
+                className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                LƯU CẤU HÌNH
+              </button>
+              <p className="text-[10px] text-slate-400 leading-relaxed italic">
+                * API Key được lưu an toàn trong bộ nhớ của trình duyệt. Bạn có thể lấy key miễn phí tại Google AI Studio.
+              </p>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
