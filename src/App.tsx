@@ -46,17 +46,13 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [isLoading, setIsLoading] = useState(true);
   const [isMock, setIsMock] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   // --- Logic: Extract Stock Code ---
   const extractStockCode = (filename: string): string | null => {
-    // Keywords to ignore when looking for stock codes
     const ignoreList = ['BCTC', 'PDF', 'ZIP', 'XLS', 'DOC', 'TXT', 'IMG', 'PNG', 'JPG', 'Q1', 'Q2', 'Q3', 'Q4'];
-    
-    // Find all 3-letter uppercase words
     const matches = filename.match(/\b[A-Z]{3}\b/g);
     if (!matches) return null;
-    
-    // Return the first match that isn't in the ignore list
     return matches.find(m => !ignoreList.includes(m)) || null;
   };
 
@@ -65,9 +61,8 @@ export default function App() {
     setIsLoading(true);
     try {
       if (typeof chrome !== 'undefined' && chrome.downloads) {
-        // Real Chrome Extension environment
         chrome.downloads.search({
-          limit: 1000, // Increased limit to find older files
+          limit: 1000,
           orderBy: ['-startTime']
         }, (items) => {
           if (chrome.runtime.lastError) {
@@ -87,8 +82,6 @@ export default function App() {
           setIsMock(false);
         });
       } else {
-        // Preview mode / Mock
-        console.warn('Chrome Downloads API not available, using mock data.');
         setTimeout(() => {
           setDownloads(MOCK_DOWNLOADS);
           setIsLoading(false);
@@ -106,9 +99,8 @@ export default function App() {
   }, []);
 
   // --- Logic: Filter and Process ---
-  const filteredFiles = useMemo(() => {
+  const allFilesToday = useMemo(() => {
     const targetDate = startOfDay(parseISO(selectedDate));
-    
     return downloads
       .map(item => ({
         id: item.id,
@@ -117,26 +109,27 @@ export default function App() {
         stockCode: extractStockCode(item.filename),
         size: item.fileSize
       }))
-      .filter(file => {
-        // Filter by date
-        const isSameDayVal = isSameDay(file.date, targetDate);
-        
-        // Broader keywords for BCTC
-        const keywords = [
-          'bctc', 'bao cao', 'báo cáo', 'tai chinh', 'tài chính', 
-          'financial', 'report', 'annual', 'kiem toan', 'kiểm toán',
-          'nghi quyet', 'nghị quyết', 'dhdcd', 'đhđcđ'
-        ];
-        const nameLower = file.name.toLowerCase();
-        const matchesKeyword = keywords.some(k => nameLower.includes(k));
-        
-        // Also include if it looks like a stock code + date pattern (e.g. VNM 2023)
-        const hasStockCode = file.stockCode !== null;
-        const hasYear = /\b(20\d{2})\b/.test(file.name);
-        
-        return isSameDayVal && (matchesKeyword || (hasStockCode && hasYear));
-      });
+      .filter(file => isSameDay(file.date, targetDate));
   }, [downloads, selectedDate]);
+
+  const filteredFiles = useMemo(() => {
+    if (showAll) return allFilesToday;
+
+    return allFilesToday.filter(file => {
+      const keywords = [
+        'bctc', 'bao cao', 'báo cáo', 'tai chinh', 'tài chính', 
+        'financial', 'report', 'annual', 'kiem toan', 'kiểm toán',
+        'nghi quyet', 'nghị quyết', 'dhdcd', 'đhđcđ'
+      ];
+      const nameLower = file.name.toLowerCase();
+      const matchesKeyword = keywords.some(k => nameLower.includes(k));
+      
+      const hasStockCode = file.stockCode !== null;
+      const hasYear = /\b(20\d{2})\b/.test(file.name);
+      
+      return matchesKeyword || (hasStockCode && hasYear);
+    });
+  }, [allFilesToday, showAll]);
 
   const uniqueStockCodes = useMemo(() => {
     const codes = filteredFiles.map(f => f.stockCode).filter(Boolean) as string[];
@@ -154,14 +147,25 @@ export default function App() {
             </div>
             <h1 className="font-bold text-lg tracking-tight">Quản Lý BCTC</h1>
           </div>
-          <button 
-            onClick={fetchDownloads}
-            disabled={isLoading}
-            className="p-2 hover:bg-slate-100 rounded-full transition-colors disabled:opacity-50"
-            title="Làm mới"
-          >
-            <RefreshCw className={cn("w-4 h-4 text-slate-500", isLoading && "animate-spin")} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowAll(!showAll)}
+              className={cn(
+                "text-[10px] font-bold px-2 py-1 rounded transition-colors",
+                showAll ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              )}
+            >
+              {showAll ? "HIỆN TẤT CẢ" : "CHỈ BCTC"}
+            </button>
+            <button 
+              onClick={fetchDownloads}
+              disabled={isLoading}
+              className="p-2 hover:bg-slate-100 rounded-full transition-colors disabled:opacity-50"
+              title="Làm mới"
+            >
+              <RefreshCw className={cn("w-4 h-4 text-slate-500", isLoading && "animate-spin")} />
+            </button>
+          </div>
         </div>
         
         {isMock && (
