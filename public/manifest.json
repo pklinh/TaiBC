@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Trình Quản Lý Báo Cáo Tài Chính",
+  "version": "1.0",
+  "description": "Lọc và đếm file báo cáo tài chính từ lịch sử tải xuống.",
+  "permissions": ["downloads", "history"],
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Báo Cáo Tài Chính"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

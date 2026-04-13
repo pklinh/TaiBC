@@ -1,0 +1,6 @@
+{
+  "name": "Trình Quản Lý Báo Cáo Tài Chính",
+  "description": "Chrome Extension giúp lọc và quản lý danh sách báo cáo tài chính từ lịch sử tải xuống.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
