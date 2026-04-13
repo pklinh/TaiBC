@@ -114,9 +114,9 @@ export default function App() {
       
       QUY TẮC QUAN TRỌNG:
       1. Chỉ xác định là BCTC nếu tên file có các từ khóa liên quan đến báo cáo tài chính, kiểm toán, đại hội cổ đông.
-      2. Trích xuất mã chứng khoán (3 chữ cái in hoa). 
-      3. KIỂM TRA TÍNH HỢP LỆ: Chỉ lấy các mã chứng khoán THẬT đang niêm yết trên sàn HOSE, HNX, UPCOM (ví dụ: VNM, HPG, ACB, VCB...). 
-      4. LOẠI BỎ CÁC MÃ GIẢ: Tuyệt đối không lấy các từ 3 chữ cái nhưng không phải mã chứng khoán như: TAI (tải), BAO (báo), PDF, ZIP, XLS, DOC, IMG, APP, FIX, NEW, OLD, M88, FUN, WIN, v.v.
+      2. Trích xuất mã chứng khoán (3 chữ cái in hoa). Lưu ý mã có thể nằm ở đầu, giữa hoặc cuối tên file (ví dụ: m88_12345_VNM.pdf hoặc VNM_BCTC.pdf).
+      3. KIỂM TRA TÍNH HỢP LỆ: Chỉ lấy các mã chứng khoán THẬT đang niêm yết trên sàn HOSE, HNX, UPCOM (ví dụ: VNM, HPG, ACB, VCB, MBS, VNT, GTS, HKC, VMD, HAI...). 
+      4. TUYỆT ĐỐI LOẠI BỎ CÁC MÃ GIẢ: Không lấy các từ 3 chữ cái là từ tiếng Việt hoặc ký hiệu kỹ thuật: TAI (tải), BAO (báo), QUY (quý), KEM (kèm), BAN (bản), HTR, PDF, ZIP, XLS, M88, v.v.
       5. Nếu không chắc chắn là BCTC hoặc không tìm thấy mã chứng khoán hợp lệ, hãy trả về isBCTC: false và stockCode: null.
       
       Danh sách file:
@@ -162,7 +162,8 @@ export default function App() {
     const ignoreList = [
       'BCTC', 'PDF', 'ZIP', 'XLS', 'DOC', 'TXT', 'IMG', 'PNG', 'JPG', 'Q1', 'Q2', 'Q3', 'Q4', 'BCQT',
       'BAO', 'TAI', 'CAO', 'CHINH', 'REPORT', 'ANNUAL', 'KIEM', 'TOAN', 'NGHI', 'QUYET', 'HOP', 'NHAT',
-      'SOAT', 'XET', 'M88', 'FUN', 'WIN', 'APP', 'FIX', 'NEW', 'OLD', 'VIET', 'NAM', 'THUE'
+      'SOAT', 'XET', 'M88', 'FUN', 'WIN', 'APP', 'FIX', 'NEW', 'OLD', 'VIET', 'NAM', 'THUE',
+      'BAN', 'QUY', 'KEM', 'HTR'
     ];
     
     // Normalize: replace underscores and non-alphanumeric with spaces to help regex
@@ -266,8 +267,11 @@ export default function App() {
 
   const uniqueStockCodes = useMemo(() => {
     const codes = filteredFiles.map(file => {
-      // Prefer AI stock code if available
-      if (aiResults[file.id]?.stockCode) return aiResults[file.id].stockCode;
+      // If AI has analyzed this file, strictly use AI's stockCode (even if null)
+      if (aiResults[file.id] !== undefined) {
+        return aiResults[file.id].stockCode;
+      }
+      // Otherwise fallback to local extraction
       return file.stockCode;
     }).filter(Boolean) as string[];
     return Array.from(new Set(codes)).sort();
