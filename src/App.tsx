@@ -110,14 +110,14 @@ export default function App() {
       const ai = new GoogleGenAI({ apiKey: currentKey });
 
       const fileList = allFilesToday.map(f => `ID: ${f.id}, Name: ${f.name}`).join('\n');
-      const prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Hãy phân tích danh sách tên file sau đây và xác định xem file nào là Báo cáo tài chính (BCTC, báo cáo thường niên, nghị quyết ĐHĐCĐ, tài liệu họp...). 
+      const prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Hãy phân tích danh sách tên file sau đây và xác định xem file nào là Báo cáo tài chính (BCTC).
       
-      QUY TẮC QUAN TRỌNG:
-      1. Chỉ xác định là BCTC nếu tên file có các từ khóa liên quan đến báo cáo tài chính, kiểm toán, đại hội cổ đông.
+      QUY TẮC NHẬN DIỆN BCTC:
+      1. Một file được coi là BCTC nếu tên file chứa các từ khóa: "Báo cáo tài chính", "Baocaotaichinh", "baocaotaichinh", "bctc", "bctc_hn", "Kiểm toán", "kiemtoan", "kiem_toan", "chuakiemtoan", "bao_cao_tai_chinh", "soat xet", "hop nhat".
       2. Trích xuất mã chứng khoán (3 chữ cái in hoa). Lưu ý mã có thể nằm ở đầu, giữa hoặc cuối tên file (ví dụ: m88_12345_VNM.pdf hoặc VNM_BCTC.pdf).
       3. KIỂM TRA TÍNH HỢP LỆ: Chỉ lấy các mã chứng khoán THẬT đang niêm yết trên sàn HOSE, HNX, UPCOM (ví dụ: VNM, HPG, ACB, VCB, MBS, VNT, GTS, HKC, VMD, HAI...). 
       4. TUYỆT ĐỐI LOẠI BỎ CÁC MÃ GIẢ: Không lấy các từ 3 chữ cái là từ tiếng Việt hoặc ký hiệu kỹ thuật: TAI (tải), BAO (báo), QUY (quý), KEM (kèm), BAN (bản), HTR, PDF, ZIP, XLS, M88, v.v.
-      5. Nếu không chắc chắn là BCTC hoặc không tìm thấy mã chứng khoán hợp lệ, hãy trả về isBCTC: false và stockCode: null.
+      5. Nếu tên file không chứa các từ khóa BCTC ở mục 1 hoặc không tìm thấy mã chứng khoán hợp lệ, hãy trả về isBCTC: false và stockCode: null.
       
       Danh sách file:
       ${fileList}
@@ -247,10 +247,9 @@ export default function App() {
       const normalizedName = nameLower.replace(/[_.]/g, ' ');
       
       const keywords = [
-        'bctc', 'báo cáo tài chính', 'tài chính', 'bctc_hn',
-        'financial', 'kiem toan', 'kiểm toán', 'hopnhat',
-        'baocaotaichinh', 'taichinh', 'kiemtoan', 'chuakiemtoan',
-        'Baocaotaichinh', 'bao_cao_tai_chinh', 'Soatxet'
+        'bctc', 'báo cáo tài chính', 'bctc_hn', 'kiểm toán', 'kiem toan',
+        'baocaotaichinh', 'kiemtoan', 'chuakiemtoan', 'bao_cao_tai_chinh',
+        'soat xet', 'soatxet', 'hop nhat', 'hopnhat', 'tài chính'
       ];
       
       const matchesKeyword = keywords.some(k => 
